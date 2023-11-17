@@ -38,8 +38,6 @@ private:
 	unsigned long expandedNodeCount;
 	unsigned int maxQueueSize;
 
-	int searchType;
-
 	//node tracking
 	vector<node> frontier;
 	vector<node> closed;
@@ -49,23 +47,20 @@ private:
 	//Helper functions
 	void addToFrontier(node toAdd);
 	void nodeExpand(node current);
-	void setup(vector<vector<int>> ship);
+	void setup(vector<vector<int>> ship, int craneRow, int craneCol, int zone);
 	bool stateExists(node toAdd);
 	bool goalTest(vector<vector<int>> ship);
-	tuple<int, int> findBlank(vector<vector<int>> ship);
 
 public:
-	void search(vector<vector<int>> ship);
-	void search(vector<vector<int>> ship, int searchType);
+	void search(vector<vector<int>> ship, int craneRow, int craneCol, int zone);
 	void printSteps(vector<int> path);
 
-	puzzles() { frontier = {}; closed = {}; searchType = 1; };
-	puzzles(int searchType) { frontier = {}; closed = {}; this->searchType = searchType; };
+	puzzles() { frontier = {}; closed = {}; };
 };
 
-void puzzles::printSteps(vector<int> path) {
+void puzzles::printSteps(vector<int> path) {		//---------------------------------------TODO-----------------------------------------------
 	cout << "Steps taken are: start";
-	for (int i = 0; i < path.size(); i++) {
+	for (unsigned int i = 0; i < path.size(); i++) {
 		cout << " -> ";
 		string move = "";
 		switch (path[i]) {
@@ -86,11 +81,11 @@ void puzzles::printSteps(vector<int> path) {
 	}
 }
 
-bool puzzles::goalTest(vector<vector<int>> ship) {
+bool puzzles::goalTest(vector<vector<int>> ship) {		//----------------------------------------------------------------TODO------------------------------------------------------------------------
 	int expected = 1;
 	int incorrect = 0;
-	for (int i = 0; i < ship.size(); i++) {
-		for (int j = 0; j < ship[0].size(); j++) {
+	for (unsigned int i = 0; i < ship.size(); i++) {
+		for (unsigned int j = 0; j < ship[0].size(); j++) {
 			if (ship[i][j] != expected++ && (i != ship.size() - 1 || j != ship[0].size() - 1)) {	//ignore trailing 0
 				return false;
 			}
@@ -99,44 +94,41 @@ bool puzzles::goalTest(vector<vector<int>> ship) {
 	return true;
 }
 
-tuple<int, int> puzzles::findBlank(vector<vector<int>> ship) {
-	for (int i = 0; i < ship.size(); i++) {
-		for (int j = 0; j < ship[0].size(); j++) {
-			if (0 == ship[i][j])
-				return { i, j };
-		}
-	}
-	return { -1, -1 };
-}
-
-void puzzles::setup(vector<vector<int>> ship) {
+void puzzles::setup(vector<vector<int>> ship, int craneRow, int craneCol, int zone) {
 	expandedNodeCount = 0;
 	maxQueueSize = 0;
 	closed.clear();
 	frontier.clear();
 	node first;
 	first.ship = ship;
-	tuple<int, int> tmp = findBlank(ship);
-	first.row = get<0>(tmp);
-	first.col = get<1>(tmp);
+	first.row = craneRow;
+	first.col = craneCol;
+	first.zone = zone;
 	first.prev = {
 		{-1, -1},
 		{-1, -1},
 		{-1, -1}
 	};
 	first.cost = 0;
+	for (int i = 0; i < BUFFERHIGHT; i++) {
+		vector<int> row = {};
+		for (int j = 0; j < BUFFERWIDTH; j++) {
+			row.push_back(0);
+		}
+		first.buffer.push_back(row);
+	}
 	heuristic(first, 0, 0);
 	addToFrontier(first);
 }
 
 bool puzzles::stateExists(node toAdd) {
-	for (int i = 0; i < closed.size(); i++) {
+	for (unsigned int i = 0; i < closed.size(); i++) {
 		if (toAdd.heur == closed[i].heur) {		//Identical states should have identical heur values
 			bool miss = false;
-			for (int j = 0; j < closed[i].ship.size(); j++) {
+			for (unsigned int j = 0; j < closed[i].ship.size(); j++) {
 				if (true == miss)
 					break;
-				for (int k = 0; k < closed[i].ship[j].size(); k++) {
+				for (unsigned int k = 0; k < closed[i].ship[j].size(); k++) {
 					if (toAdd.ship[j][k] != closed[i].ship[j][k]) {
 						miss = true;
 						break;
@@ -147,13 +139,13 @@ bool puzzles::stateExists(node toAdd) {
 				return true;
 		}
 	}
-	for (int i = 0; i < frontier.size(); i++) {
+	for (unsigned int i = 0; i < frontier.size(); i++) {
 		if (toAdd.heur == frontier[i].heur) {		//Identical states should have identical heur values
 			bool miss = false;
-			for (int j = 0; j < frontier[i].ship.size(); j++) {
+			for (unsigned int j = 0; j < frontier[i].ship.size(); j++) {
 				if (true == miss)
 					break;
-				for (int k = 0; k < frontier[i].ship[j].size(); k++) {
+				for (unsigned int k = 0; k < frontier[i].ship[j].size(); k++) {
 					if (toAdd.ship[j][k] != frontier[i].ship[j][k]) {
 						miss = true;
 						break;
@@ -170,14 +162,8 @@ bool puzzles::stateExists(node toAdd) {
 	return false;
 }
 
-void puzzles::search(vector<vector<int>> ship, int searchType) {
-	this->searchType = searchType;
-	search(ship);
-	searchType = 1;
-}
-
-void puzzles::search(vector<vector<int>> ship) {
-	setup(ship);
+void puzzles::search(vector<vector<int>> ship, int craneRow, int craneCol, int zone) {
+	setup(ship, craneRow, craneCol, zone);
 
 	while (true) {
 		if (true == frontier.empty()) {
@@ -212,13 +198,9 @@ void puzzles::addToFrontier(node toAdd) {
 		frontier.push_back(toAdd);
 		return;
 	}
-	for (int i = 0; i < frontier.size(); i++) {
-		int toAddCost = toAdd.cost;
-		int frontierCost = frontier[i].cost;
-		if (0 != searchType) {		//Allows heur to be used to improve stateExists runtime without messing up uniform cost
-			toAddCost += toAdd.heur;
-			frontierCost += frontier[i].heur;
-		}
+	for (unsigned int i = 0; i < frontier.size(); i++) {
+		int toAddCost = toAdd.cost + toAdd.heur;
+		int frontierCost = frontier[i].cost + frontier[i].heur;
 		if (toAddCost < frontierCost) {
 			frontier.emplace(frontier.begin() + i, toAdd);
 			return;
@@ -229,7 +211,7 @@ void puzzles::addToFrontier(node toAdd) {
 
 int findTopShip(vector<vector<int>> ship, int col) {
 	for (int i = SHIPHIGHT - 1; i >= 0; i--) {
-		if (1 <= ship[col][i])
+		if (1 <= ship[i][col])
 			return i;
 	}
 	return -1;
@@ -239,7 +221,7 @@ int findTopShip(vector<vector<int>> ship, int col) {
 tuple<int, int> findBufferPlace(vector<vector<int>> buffer) {
 	for (int i = BUFFERWIDTH - 1; i >= 0; i--) {
 		for (int j = BUFFERHIGHT - 2; j >= 0; j--) {	//Buffer zone does not allow walls	(choice for simplicity, not mandated)
-			if (1 <= buffer[i][j]) {
+			if (1 <= buffer[j][i]) {
 				if (BUFFERHIGHT - 2 > j) {	//There is an empty space in the column
 					return { i, j + 1 };
 				}
@@ -254,7 +236,7 @@ tuple<int, int> findBufferPlace(vector<vector<int>> buffer) {
 //Finds the closest available container in the buffer zone
 int findBufferGet(vector<vector<int>> buffer) {
 	for (int i = BUFFERHIGHT - 2; i >= 0; i--) {	//Buffer zone does not allow walls	(choice for simplicity, not mandated)
-		if (1 <= buffer[BUFFERWIDTH - 1][i]) {
+		if (1 <= buffer[i][BUFFERWIDTH - 1]) {
 			return i;
 		}
 	}
@@ -275,7 +257,7 @@ vector<int> findWalls(vector<vector<int>> ship) {
 
 bool validPath(vector<vector<int>> ship, int startCol, int endCol) {
 	vector<int> walls = findWalls(ship);
-	for (int i = 0; i < walls.size(); i++) {
+	for (unsigned int i = 0; i < walls.size(); i++) {
 		if (startCol <= walls[i] && walls[i] < endCol || endCol <= walls[i] && walls[i] < startCol)	//ship portal accessablility is not checked elsewhere (thus startCol <= walls[i])
 			return false;
 	}
@@ -291,13 +273,18 @@ void puzzles::nodeExpand(node current) {
 	vector<node> validNodes;
 	for (int i = -1; i <= SHIPWIDTH; i++) {
 		node newNode = current;
-		int valid = heuristic(newNode, containerToMove, i);
-		if (valid) {
+		if (-1 != heuristic(newNode, containerToMove, i)) {	//Move container from ship
+			validNodes.push_back(newNode);
+		}
+		if (-1 != heuristic(newNode, -1, i)) {	//Move container from buffer
+			validNodes.push_back(newNode);
+		}
+		if (-1 != heuristic(newNode, SHIPWIDTH, i)) {	//Load container from truck
 			validNodes.push_back(newNode);
 		}
 	}
 
-	for (int i = 0; i < validNodes.size(); i++) {
+	for (unsigned int i = 0; i < validNodes.size(); i++) {
 		if (stateExists(validNodes[i]))
 			;	//------------------------------------------------------------------------------TODO--------------------------------------------------------------------
 	}
@@ -335,8 +322,8 @@ int puzzles::heuristic(node &newNode, int oldCol, int newCol) {
 		oldTop = findTopShip(newNode.ship, oldCol);
 		if (-1 == oldTop)
 			return -1;	//No containers to grab in column
-		container = newNode.ship[oldCol][oldTop];
-		newNode.ship[oldCol][oldTop] = 0;
+		container = newNode.ship[oldTop][oldCol];
+		newNode.ship[oldTop][oldCol] = 0;
 		if (0 == newNode.zone) {	//crane starts on ship
 			if (false == validPath(newNode.ship, oldCol, newCol))
 				return false;	//crane can't get to container
@@ -360,8 +347,8 @@ int puzzles::heuristic(node &newNode, int oldCol, int newCol) {
 		if (-1 == row)
 			return -1;	//No container in buffer
 		oldTop = row;
-		container = newNode.buffer[oldCol][oldTop];
-		newNode.buffer[oldCol][oldCol] = 0;
+		container = newNode.buffer[oldTop][oldCol];
+		newNode.buffer[oldTop][oldCol] = 0;
 		if (1 == newNode.zone) {	//crane starts in buffer
 			cost = (max(newNode.col, oldCol) - min(newNode.col, oldCol)) + ((BUFFERHIGHT - 1) - newNode.row) + ((BUFFERHIGHT - 1) - oldTop);	//travel time to container (x dist + up dist + down dist)
 		}
@@ -413,6 +400,7 @@ int puzzles::heuristic(node &newNode, int oldCol, int newCol) {
 				cost += PORTALTIME + newCol + ((SHIPHIGHT - 1) - newTop);	// portal + sx + sdown
 			}
 		}
+		newNode.ship[newTop][newCol] = container;
 		newNode.zone = 0;
 	}
 	else {	//moving to buffer
@@ -426,6 +414,7 @@ int puzzles::heuristic(node &newNode, int oldCol, int newCol) {
 				return -1;
 			cost += ((SHIPHIGHT - 1) - oldTop) + oldCol + PORTALTIME + ((BUFFERWIDTH - 1) - newCol) + ((BUFFERHIGHT - 1) - newTop);	// sup + sx + portal + bx + bdown
 		}
+		newNode.buffer[newTop][newCol] = container;
 		newNode.zone = 1;
 	}
 
@@ -442,8 +431,8 @@ int puzzles::heuristic(node &newNode, int oldCol, int newCol) {
 }
 
 void printPuzzle(vector<vector<int>> ship) {
-	for (int i = 0; i < ship.size(); i++) {
-		for (int j = 0; j < ship[0].size(); j++) {
+	for (unsigned int i = 0; i < ship.size(); i++) {
+		for (unsigned int j = 0; j < ship[0].size(); j++) {
 			int val = ship[i][j];
 			if (0 == val)
 				cout << "\t*";
@@ -476,16 +465,9 @@ void givenTests() {
 	printPuzzle(ship);
 	auto start = chrono::steady_clock::now();
 	debug = false;
-	p.search(ship, 3);
+	p.search(ship, 0, 0, 0);
 	auto finish = chrono::steady_clock::now();
 	auto duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
-	cout << "Duration: " << duration << endl;
-
-	start = chrono::steady_clock::now();
-	debug = false;
-	p.search(ship, 0);
-	finish = chrono::steady_clock::now();
-	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
 	cout << "Duration: " << duration << endl;
 
 	ship = {		//Very Easy
@@ -503,18 +485,10 @@ void givenTests() {
 	printPuzzle(ship);
 	start = chrono::steady_clock::now();
 	debug = false;
-	p.search(ship, 3);
+	p.search(ship, 0, 0, 0);
 	finish = chrono::steady_clock::now();
 	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
 	cout << "Duration: " << duration << endl;
-
-	start = chrono::steady_clock::now();
-	debug = false;
-	p.search(ship, 0);
-	finish = chrono::steady_clock::now();
-	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
-	cout << "Duration: " << duration << endl;
-
 
 	ship = {		//Easy
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -531,14 +505,7 @@ void givenTests() {
 	printPuzzle(ship);
 	start = chrono::steady_clock::now();
 	debug = false;
-	p.search(ship, 3);
-	finish = chrono::steady_clock::now();
-	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
-	cout << "Duration: " << duration << endl;
-
-	start = chrono::steady_clock::now();
-	debug = false;
-	p.search(ship, 0);
+	p.search(ship, 0, 0, 0);
 	finish = chrono::steady_clock::now();
 	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
 	cout << "Duration: " << duration << endl;
@@ -558,14 +525,7 @@ void givenTests() {
 	printPuzzle(ship);
 	start = chrono::steady_clock::now();
 	debug = true;
-	p.search(ship, 3);
-	finish = chrono::steady_clock::now();
-	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
-	cout << "Duration: " << duration << endl;
-
-	start = chrono::steady_clock::now();
-	debug = false;
-	p.search(ship, 0);
+	p.search(ship, 0, 0, 0);
 	finish = chrono::steady_clock::now();
 	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
 	cout << "Duration: " << duration << endl;
@@ -585,14 +545,7 @@ void givenTests() {
 	printPuzzle(ship);
 	start = chrono::steady_clock::now();
 	debug = false;
-	p.search(ship, 3);
-	finish = chrono::steady_clock::now();
-	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
-	cout << "Duration: " << duration << endl;
-
-	start = chrono::steady_clock::now();
-	debug = false;
-	p.search(ship, 0);
+	p.search(ship, 0, 0, 0);
 	finish = chrono::steady_clock::now();
 	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
 	cout << "Duration: " << duration << endl;
@@ -608,12 +561,14 @@ void givenTests() {
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	};
-	//cout << "------------------------------------------------------------------------------------------------\n\nImpossible:\n";
-	//printPuzzle(ship);
-	//p.search(ship, 3);
-	//p.search(ship, 2);
-	//p.search(ship, 1);
-	//p.search(ship, 0);
+	cout << "------------------------------------------------------------------------------------------------\n\nImpossible:\n";
+	printPuzzle(ship);
+	start = chrono::steady_clock::now();
+	debug = false;
+	p.search(ship, 0, 0, 0);
+	finish = chrono::steady_clock::now();
+	duration = chrono::duration_cast<chrono::duration<double>>(finish - start).count();
+	cout << "Duration: " << duration << endl;
 }
 
 
